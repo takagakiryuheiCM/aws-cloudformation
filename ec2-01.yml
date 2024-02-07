@@ -1,0 +1,124 @@
+Description: This template builds EC2 instances on the constructed VPC network.
+  It also configures security groups and ELBs.
+Parameters:
+  EnvironmentName:
+    Description: cfn-temp
+    Type: String
+  
+  VpcId:
+    Description: VPC ID
+    Type: String
+
+  ImageId:
+    Description: ImageId
+    Type: String
+  
+  PublicSubnet1Id: 
+    Description:  public subnet 1 id 
+    Type: String
+  
+  PublicSubnet2Id: 
+    Description:  public subnet 2 id 
+    Type: String
+
+Resources:
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security group for cfn-alb"
+      GroupName: "cfn-alb-sg"
+      SecurityGroupIngress: 
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags: 
+        - Key: Name
+          Value: !Ref EnvironmentName
+      VpcId: !Ref VpcId
+  
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security group for cfn-ec2-1"
+      GroupName: "cfn-ec2-1-sg"
+      SecurityGroupIngress: 
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+      Tags: 
+        - Key: Name
+          Value: !Ref EnvironmentName
+      VpcId: !Ref VpcId
+  
+  Ec2Instance1:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref ImageId
+      InstanceType: t3.micro
+      SecurityGroupIds: 
+        - !GetAtt EC2SecurityGroup.GroupId
+      SubnetId: !Ref PublicSubnet1Id
+      Tags: 
+        - Key: Name
+          Value: !Ref EnvironmentName
+
+  Ec2Instance2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref ImageId
+      InstanceType: t3.micro
+      SecurityGroupIds: 
+        - !GetAtt EC2SecurityGroup.GroupId
+      SubnetId: !Ref PublicSubnet2Id
+      Tags: 
+        - Key: Name
+          Value: !Ref EnvironmentName
+  
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: cfn-alb
+      Subnets:
+        - !Ref PublicSubnet1Id
+        - !Ref PublicSubnet2Id
+      SecurityGroups: 
+        - !Ref ALBSecurityGroup
+      Tags: 
+        - Key: Name
+          Value: !Ref EnvironmentName
+  
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: cfn-tg2
+      Protocol: HTTP
+      Port: 80
+      VpcId: !Ref VpcId
+      TargetType: "instance"
+      Targets:
+        - Id: !Ref Ec2Instance1
+        - Id: !Ref Ec2Instance2
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+      LoadBalancerArn: !Ref ALB
+      Port: 80
+      Protocol: HTTP
+
+    
+
+
+  
